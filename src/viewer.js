@@ -123,7 +123,7 @@ function setMotionEnabled(enabled) {
   motionYawOffset.identity();
   motionButton.setAttribute('aria-pressed', String(enabled));
   motionButton.classList.toggle('active', enabled);
-  motionButton.lastChild.textContent = enabled ? ' Motion on' : ' Phone motion';
+  motionButton.lastChild.textContent = enabled ? ' Motion enabled' : ' Enable phone motion';
   document.querySelector('#viewer-hint span:last-child').textContent = enabled
     ? 'Rotate your phone to look around'
     : 'Drag to look around';

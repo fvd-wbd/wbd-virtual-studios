@@ -185,10 +185,10 @@ h1 em { display: block; color: var(--white); font-family: 'TNT Sports Serif', Ge
 .viewer-controls button, .viewer-controls .zoom-controls, .viewer-controls .vr-slot { position: relative; z-index: 1; pointer-events: auto; }
 .text-control { justify-self: start; padding: 10px 0; font-size: 11px; text-transform: uppercase; }
 .text-control span { margin-right: 8px; color: var(--neon); font-size: 20px; }
-.motion-button { display: none; color: var(--muted); font-size: 10px; text-transform: uppercase; }
-.motion-button span { margin-right: 7px; color: var(--neon); font-size: 16px; }
-.motion-button.active { color: var(--white); }
-.motion-button.active span { text-shadow: 0 0 10px var(--neon); }
+.motion-button { display: none; color: var(--black); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.motion-button span { margin-right: 8px; font-size: 17px; }
+.motion-button.active { outline: 1px solid var(--neon); background: rgba(16,30,40,.86); color: var(--white); }
+.motion-button.active span { color: var(--neon); text-shadow: 0 0 10px var(--neon); }
 .zoom-controls { display: flex; align-items: center; gap: 16px; }
 .zoom-controls > span { min-width: 38px; font-size: 10px; text-align: center; }
 .icon-button { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 50%; font-size: 18px; }
@@ -226,7 +226,7 @@ h1 em { display: block; color: var(--white); font-family: 'TNT Sports Serif', Ge
 }
 
 @media (hover: none) and (pointer: coarse) {
-  .motion-button { position: fixed; right: 20px; bottom: 132px; display: block; padding: 10px 0; }
+  .motion-button { position: fixed; right: 20px; bottom: 132px; display: flex; align-items: center; min-height: 44px; padding: 12px 16px; background: var(--neon); box-shadow: 0 8px 24px rgba(0,0,0,.3); }
 }
 
 @media (hover: none) and (pointer: coarse) and (max-width: 950px) {
@@ -252,7 +252,6 @@ h1 em { display: block; color: var(--white); font-family: 'TNT Sports Serif', Ge
   .viewer-header { min-height: 72px; }
   .back-link { font-size: 10px; }
   .viewer-controls { grid-template-columns: 1fr 1fr; min-height: 68px; }
-  .motion-button { position: fixed; right: 20px; bottom: 132px; display: block; padding: 10px 0; }
   .zoom-controls { justify-self: end; }
   .vr-slot { display: none; }
   .viewer-hint { bottom: 88px; left: 20px; transform: none; }
