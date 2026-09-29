@@ -13,9 +13,16 @@ Open the local URL shown by Vite. Upload an equirectangular 360 image using the 
 
 ## Add a studio
 
+Install and initialize [Git LFS](https://git-lfs.com/) once before adding studio panoramas:
+
+```bash
+git lfs install
+```
+
 1. Add an equirectangular JPG, PNG, WEBP, or AVIF panorama to `public/images`.
 2. Use a readable filename such as `atlanta_studio.png`. The catalog automatically displays it as `Atlanta Studio`.
-3. Run `npm run dev`, or rebuild the deployed site with `npm run build`.
+3. Stage the image with `git add public/images/your_studio.png`. Files in this directory are tracked automatically by Git LFS.
+4. Run `npm run dev`, or rebuild the deployed site with `npm run build`.
 
 The Vite configuration generates `studios.json` from the folder contents. No JavaScript or HTML changes are needed when studios are added or removed.
 
