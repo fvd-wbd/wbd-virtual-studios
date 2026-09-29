@@ -7,6 +7,7 @@ const resetButton = document.querySelector('#reset-button');
 const zoomIn = document.querySelector('#zoom-in');
 const zoomOut = document.querySelector('#zoom-out');
 const zoomLabel = document.querySelector('#zoom-label');
+const motionButton = document.querySelector('#motion-button');
 const imageStatus = document.querySelector('#image-status');
 const loader = document.querySelector('#loader');
 const loaderTitle = document.querySelector('#loader-title');
@@ -48,6 +49,14 @@ let lastY = 0;
 let activeObjectUrl = null;
 let studios = [];
 let currentStudioIndex = -1;
+let motionEnabled = false;
+let deviceQuaternion = null;
+let motionOrigin = null;
+
+const deviceEuler = new THREE.Euler();
+const screenTransform = new THREE.Quaternion();
+const deviceTransform = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
+const screenAxis = new THREE.Vector3(0, 0, 1);
 
 function setLoading(visible, title, detail) {
   if (title) loaderTitle.textContent = title;
@@ -70,9 +79,77 @@ function setZoom(nextZoom) {
 }
 
 function resetView() {
+  if (motionEnabled) {
+    motionOrigin = deviceQuaternion?.clone().invert() ?? null;
+  }
   targetYaw = 0;
   targetPitch = 0;
   setZoom(75);
+}
+
+function getScreenOrientation() {
+  return THREE.MathUtils.degToRad(window.screen.orientation?.angle ?? window.orientation ?? 0);
+}
+
+function handleDeviceOrientation(event) {
+  if (event.alpha === null || event.beta === null || event.gamma === null) return;
+
+  deviceEuler.set(
+    THREE.MathUtils.degToRad(event.beta),
+    THREE.MathUtils.degToRad(event.alpha),
+    -THREE.MathUtils.degToRad(event.gamma),
+    'YXZ'
+  );
+  screenTransform.setFromAxisAngle(screenAxis, -getScreenOrientation());
+  deviceQuaternion = new THREE.Quaternion()
+    .setFromEuler(deviceEuler)
+    .multiply(deviceTransform)
+    .multiply(screenTransform);
+
+  if (!motionOrigin) motionOrigin = deviceQuaternion.clone().invert();
+}
+
+function setMotionEnabled(enabled) {
+  motionEnabled = enabled;
+  motionOrigin = null;
+  motionButton.setAttribute('aria-pressed', String(enabled));
+  motionButton.classList.toggle('active', enabled);
+  motionButton.lastChild.textContent = enabled ? ' Motion on' : ' Phone motion';
+  document.querySelector('#viewer-hint span:last-child').textContent = enabled
+    ? 'Rotate your phone to look around'
+    : 'Drag to look around';
+
+  if (enabled) {
+    window.addEventListener('deviceorientation', handleDeviceOrientation, true);
+    showToast('Motion enabled. Rotate your phone to look around.');
+  } else {
+    window.removeEventListener('deviceorientation', handleDeviceOrientation, true);
+    camera.rotation.set(pitch, yaw, 0, 'YXZ');
+    showToast('Motion disabled. Drag to look around.');
+  }
+}
+
+async function toggleMotion() {
+  if (motionEnabled) {
+    setMotionEnabled(false);
+    return;
+  }
+
+  if (typeof DeviceOrientationEvent === 'undefined') {
+    showToast('Motion controls are not supported on this device.');
+    return;
+  }
+
+  try {
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      const permission = await DeviceOrientationEvent.requestPermission();
+      if (permission !== 'granted') throw new Error('Motion permission was denied.');
+    }
+    setMotionEnabled(true);
+  } catch (error) {
+    console.error(error);
+    showToast('Allow motion access in your browser settings to use this mode.');
+  }
 }
 
 function revealViewer() {
@@ -172,11 +249,12 @@ function loadLocalFile(file) {
 }
 
 resetButton.addEventListener('click', resetView);
+motionButton.addEventListener('click', toggleMotion);
 zoomIn.addEventListener('click', () => setZoom(zoom - 5));
 zoomOut.addEventListener('click', () => setZoom(zoom + 5));
 
 canvas.addEventListener('pointerdown', (event) => {
-  if (!sphere.material.map) return;
+  if (!sphere.material.map || motionEnabled) return;
   isDragging = true;
   lastX = event.clientX;
   lastY = event.clientY;
@@ -216,9 +294,13 @@ window.addEventListener('beforeunload', () => {
 
 function animate() {
   if (!renderer.xr.isPresenting) {
-    yaw += (targetYaw - yaw) * 0.1;
-    pitch += (targetPitch - pitch) * 0.1;
-    camera.rotation.set(pitch, yaw, 0, 'YXZ');
+    if (motionEnabled && deviceQuaternion && motionOrigin) {
+      camera.quaternion.copy(motionOrigin).multiply(deviceQuaternion);
+    } else if (!motionEnabled) {
+      yaw += (targetYaw - yaw) * 0.1;
+      pitch += (targetPitch - pitch) * 0.1;
+      camera.rotation.set(pitch, yaw, 0, 'YXZ');
+    }
   }
   renderer.render(scene, camera);
 }

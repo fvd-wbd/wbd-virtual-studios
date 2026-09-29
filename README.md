@@ -11,6 +11,8 @@ npm run dev
 
 Open the local URL shown by Vite. Upload an equirectangular 360 image using the upload panel, then drag to look around and scroll to zoom.
 
+On supported phones, open a panorama and tap **Phone motion** to look around by rotating the device. iPhone and iPad users must approve the browser motion permission. Motion sensors require HTTPS outside `localhost`; touch drag remains available when motion mode is off or unsupported.
+
 ## Add a studio
 
 Install and initialize [Git LFS](https://git-lfs.com/) once before adding studio panoramas:

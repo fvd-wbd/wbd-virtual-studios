@@ -180,10 +180,15 @@ h1 em { display: block; color: var(--white); font-family: 'TNT Sports Serif', Ge
 .switch-copy { display: grid; gap: 3px; }
 .switch-copy small { color: var(--muted); font-size: 9px; text-transform: uppercase; }
 .switch-copy strong { max-width: 170px; overflow: hidden; font-size: 11px; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
-.viewer-controls { position: fixed; z-index: 3; right: clamp(20px, 4vw, 56px); bottom: 0; left: clamp(20px, 4vw, 56px); display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: 78px; border-top: 1px solid rgba(255,255,255,.3); }
-.text-control, .icon-button { border: 0; background: transparent; cursor: pointer; }
+.viewer-controls { position: fixed; z-index: 4; right: clamp(20px, 4vw, 56px); bottom: 0; left: clamp(20px, 4vw, 56px); display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: 78px; border-top: 1px solid rgba(255,255,255,.3); }
+.text-control, .icon-button, .motion-button { border: 0; background: transparent; cursor: pointer; }
+.viewer-controls button, .viewer-controls .zoom-controls, .viewer-controls .vr-slot { position: relative; z-index: 1; pointer-events: auto; }
 .text-control { justify-self: start; padding: 10px 0; font-size: 11px; text-transform: uppercase; }
 .text-control span { margin-right: 8px; color: var(--neon); font-size: 20px; }
+.motion-button { display: none; color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.motion-button span { margin-right: 7px; color: var(--neon); font-size: 16px; }
+.motion-button.active { color: var(--white); }
+.motion-button.active span { text-shadow: 0 0 10px var(--neon); }
 .zoom-controls { display: flex; align-items: center; gap: 16px; }
 .zoom-controls > span { min-width: 38px; font-size: 10px; text-align: center; }
 .icon-button { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 50%; font-size: 18px; }
@@ -220,6 +225,10 @@ h1 em { display: block; color: var(--white); font-family: 'TNT Sports Serif', Ge
   .viewer-title { display: none; }
 }
 
+@media (hover: none) and (pointer: coarse) {
+  .motion-button { position: fixed; right: 20px; bottom: 132px; display: block; padding: 10px 0; }
+}
+
 @media (max-width: 600px) {
   .site-header { min-height: 72px; }
   .brand-tnt { width: 42px; height: 28px; font-size: 13px; }
@@ -239,6 +248,7 @@ h1 em { display: block; color: var(--white); font-family: 'TNT Sports Serif', Ge
   .viewer-header { min-height: 72px; }
   .back-link { font-size: 10px; }
   .viewer-controls { grid-template-columns: 1fr 1fr; min-height: 68px; }
+  .motion-button { position: fixed; right: 20px; bottom: 132px; display: block; padding: 10px 0; }
   .zoom-controls { justify-self: end; }
   .vr-slot { position: fixed; right: 20px; bottom: 83px; }
   .viewer-hint { bottom: 88px; left: 20px; transform: none; }
