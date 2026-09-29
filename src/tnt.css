@@ -229,6 +229,10 @@ h1 em { display: block; color: var(--white); font-family: 'TNT Sports Serif', Ge
   .motion-button { position: fixed; right: 20px; bottom: 132px; display: block; padding: 10px 0; }
 }
 
+@media (hover: none) and (pointer: coarse) and (max-width: 950px) {
+  .vr-slot { display: none; }
+}
+
 @media (max-width: 600px) {
   .site-header { min-height: 72px; }
   .brand-tnt { width: 42px; height: 28px; font-size: 13px; }
@@ -250,7 +254,7 @@ h1 em { display: block; color: var(--white); font-family: 'TNT Sports Serif', Ge
   .viewer-controls { grid-template-columns: 1fr 1fr; min-height: 68px; }
   .motion-button { position: fixed; right: 20px; bottom: 132px; display: block; padding: 10px 0; }
   .zoom-controls { justify-self: end; }
-  .vr-slot { position: fixed; right: 20px; bottom: 83px; }
+  .vr-slot { display: none; }
   .viewer-hint { bottom: 88px; left: 20px; transform: none; }
   .studio-switcher { bottom: 84px; }
   .switch-copy strong { display: none; }

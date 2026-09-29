@@ -51,12 +51,15 @@ let studios = [];
 let currentStudioIndex = -1;
 let motionEnabled = false;
 let deviceQuaternion = null;
-let motionOrigin = null;
+let motionCalibrated = false;
 
 const deviceEuler = new THREE.Euler();
 const screenTransform = new THREE.Quaternion();
 const deviceTransform = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
+const motionYawOffset = new THREE.Quaternion();
 const screenAxis = new THREE.Vector3(0, 0, 1);
+const worldUp = new THREE.Vector3(0, 1, 0);
+const deviceForward = new THREE.Vector3();
 
 function setLoading(visible, title, detail) {
   if (title) loaderTitle.textContent = title;
@@ -79,9 +82,7 @@ function setZoom(nextZoom) {
 }
 
 function resetView() {
-  if (motionEnabled) {
-    motionOrigin = deviceQuaternion?.clone().invert() ?? null;
-  }
+  if (motionEnabled && deviceQuaternion) calibrateMotionHeading();
   targetYaw = 0;
   targetPitch = 0;
   setZoom(75);
@@ -89,6 +90,13 @@ function resetView() {
 
 function getScreenOrientation() {
   return THREE.MathUtils.degToRad(window.screen.orientation?.angle ?? window.orientation ?? 0);
+}
+
+function calibrateMotionHeading() {
+  deviceForward.set(0, 0, -1).applyQuaternion(deviceQuaternion);
+  const heading = Math.atan2(deviceForward.x, -deviceForward.z);
+  motionYawOffset.setFromAxisAngle(worldUp, -heading);
+  motionCalibrated = true;
 }
 
 function handleDeviceOrientation(event) {
@@ -106,12 +114,13 @@ function handleDeviceOrientation(event) {
     .multiply(deviceTransform)
     .multiply(screenTransform);
 
-  if (!motionOrigin) motionOrigin = deviceQuaternion.clone().invert();
+  if (!motionCalibrated) calibrateMotionHeading();
 }
 
 function setMotionEnabled(enabled) {
   motionEnabled = enabled;
-  motionOrigin = null;
+  motionCalibrated = false;
+  motionYawOffset.identity();
   motionButton.setAttribute('aria-pressed', String(enabled));
   motionButton.classList.toggle('active', enabled);
   motionButton.lastChild.textContent = enabled ? ' Motion on' : ' Phone motion';
@@ -294,8 +303,8 @@ window.addEventListener('beforeunload', () => {
 
 function animate() {
   if (!renderer.xr.isPresenting) {
-    if (motionEnabled && deviceQuaternion && motionOrigin) {
-      camera.quaternion.copy(motionOrigin).multiply(deviceQuaternion);
+    if (motionEnabled && deviceQuaternion && motionCalibrated) {
+      camera.quaternion.copy(motionYawOffset).multiply(deviceQuaternion);
     } else if (!motionEnabled) {
       yaw += (targetYaw - yaw) * 0.1;
       pitch += (targetPitch - pitch) * 0.1;
