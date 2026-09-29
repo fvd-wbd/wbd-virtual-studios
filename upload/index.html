@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101e28" />
+    <meta name="description" content="Preview a local 360 panorama in the TNT Sports virtual studio viewer." />
+    <title>Upload Preview | TNT Sports</title>
+  </head>
+  <body class="viewer-page upload-page" data-mode="upload">
+    <main id="app" class="viewer-app">
+      <canvas id="viewer" aria-label="Interactive 360-degree panorama preview"></canvas>
+      <div class="viewer-shade" aria-hidden="true"></div>
+      <header class="viewer-header">
+        <a class="brand" href="../" aria-label="TNT Sports Virtual Studios home">
+          <span class="brand-tnt">TNT</span>
+          <span class="brand-sports">Sports</span>
+        </a>
+        <div class="viewer-title">
+          <span>Private preview</span>
+          <strong id="image-status">No image selected</strong>
+        </div>
+        <a class="back-link" href="../"><span aria-hidden="true">&#8592;</span> Studios</a>
+      </header>
+
+      <section id="upload-panel" class="upload-panel" aria-labelledby="upload-title">
+        <div class="viewfinder upload-viewfinder" aria-hidden="true"><span></span><span></span></div>
+        <p class="eyebrow">Your panorama</p>
+        <h1 id="upload-title">Preview it <em>in 360.</em></h1>
+        <p>Your image stays on this device and is never added to the studio catalog.</p>
+        <button id="upload-button" class="primary-button" type="button">Choose panorama <span aria-hidden="true">&#8599;</span></button>
+        <span class="file-note">JPG, PNG, WEBP or AVIF · Max 50 MB</span>
+        <input id="file-input" type="file" accept="image/jpeg,image/png,image/webp,image/avif" hidden />
+      </section>
+
+      <div id="drop-zone" class="drop-zone" aria-hidden="true">Drop panorama to preview</div>
+      <div id="loader" class="viewer-loader is-hidden" role="status" aria-live="polite">
+        <div class="viewfinder loading-mark" aria-hidden="true"><span></span><span></span></div>
+        <strong id="loader-title">Building preview</strong>
+        <span id="loader-detail">Loading your panorama</span>
+      </div>
+      <div class="viewer-hint is-hidden" id="viewer-hint"><span class="drag-symbol" aria-hidden="true">&#8596;</span><span>Drag to look around</span></div>
+
+      <footer class="viewer-controls is-hidden" id="viewer-controls" aria-label="Viewer controls">
+        <button id="reset-button" class="text-control" type="button"><span aria-hidden="true">&#8634;</span> Reset</button>
+        <div class="zoom-controls" aria-label="Zoom controls">
+          <button id="zoom-out" class="icon-button" type="button" aria-label="Zoom out">&#8722;</button>
+          <span id="zoom-label">100%</span>
+          <button id="zoom-in" class="icon-button" type="button" aria-label="Zoom in">+</button>
+        </div>
+        <div id="vr-slot" class="vr-slot"></div>
+      </footer>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    </main>
+    <script type="module" src="/src/viewer.js"></script>
+  </body>
+</html>

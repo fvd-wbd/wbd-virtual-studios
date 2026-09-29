@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101e28" />
+    <title>Studio Viewer | TNT Sports</title>
+  </head>
+  <body class="viewer-page" data-mode="studio">
+    <main id="app" class="viewer-app">
+      <canvas id="viewer" aria-label="Interactive 360-degree studio viewer"></canvas>
+      <div class="viewer-shade" aria-hidden="true"></div>
+      <header class="viewer-header">
+        <a class="brand" href="../" aria-label="Back to TNT Sports Virtual Studios">
+          <span class="brand-tnt">TNT</span>
+          <span class="brand-sports">Sports</span>
+        </a>
+        <div class="viewer-title">
+          <span>Now viewing</span>
+          <strong id="image-status">Studio</strong>
+        </div>
+        <a class="back-link" href="../"><span aria-hidden="true">&#8592;</span> All studios</a>
+      </header>
+
+      <div id="loader" class="viewer-loader" role="status" aria-live="polite">
+        <div class="viewfinder loading-mark" aria-hidden="true"><span></span><span></span></div>
+        <strong id="loader-title">Entering studio</strong>
+        <span id="loader-detail">Loading 360 environment</span>
+      </div>
+
+      <div class="viewer-hint" id="viewer-hint">
+        <span class="drag-symbol" aria-hidden="true">&#8596;</span>
+        <span>Drag to look around</span>
+      </div>
+
+      <footer class="viewer-controls" aria-label="Viewer controls">
+        <button id="reset-button" class="text-control" type="button"><span aria-hidden="true">&#8634;</span> Reset</button>
+        <div class="zoom-controls" aria-label="Zoom controls">
+          <button id="zoom-out" class="icon-button" type="button" aria-label="Zoom out">&#8722;</button>
+          <span id="zoom-label">100%</span>
+          <button id="zoom-in" class="icon-button" type="button" aria-label="Zoom in">+</button>
+        </div>
+        <div id="vr-slot" class="vr-slot"></div>
+      </footer>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    </main>
+    <script type="module" src="/src/viewer.js"></script>
+  </body>
+</html>

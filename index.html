@@ -3,46 +3,54 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#091317" />
-    <title>Horizon | 360 panorama viewer</title>
+    <meta name="theme-color" content="#101e28" />
+    <meta name="description" content="Explore Warner Bros. Discovery TNT Sports virtual studios in 360 degrees." />
+    <title>TNT Sports | Virtual Studios</title>
   </head>
-  <body>
-    <main id="app">
-      <canvas id="viewer" aria-label="360 panorama viewer"></canvas>
-      <div class="grain" aria-hidden="true"></div>
-      <header class="topbar">
-        <a class="brand" href="./" aria-label="Horizon home">
-          <span class="brand-mark"><span></span><span></span><span></span></span>
-          <span>Horizon</span>
+  <body class="catalog-page">
+    <div class="site-shell">
+      <header class="site-header">
+        <a class="brand" href="./" aria-label="TNT Sports Virtual Studios home">
+          <span class="brand-tnt">TNT</span>
+          <span class="brand-sports">Sports</span>
         </a>
-        <div class="topbar-meta"><span class="status-dot"></span><span id="image-status">Demo panorama</span></div>
+        <nav class="site-nav" aria-label="Main navigation">
+          <a class="active" href="./">Studios</a>
+          <a href="./upload/">Upload preview</a>
+        </nav>
       </header>
-      <section class="intro" aria-labelledby="page-title">
-        <p class="eyebrow">Immersive image viewer</p>
-        <h1 id="page-title">Look around.<br /><em>Stay awhile.</em></h1>
-        <p class="intro-copy">Bring your world into focus with a simple, cinematic 360 view.</p>
-      </section>
-      <section class="upload-card" id="upload-card">
-        <div class="upload-icon" aria-hidden="true">+</div>
-        <div class="upload-copy">
-          <strong>Drop a panorama here</strong>
-          <span>JPG, PNG, WEBP up to 50 MB</span>
-        </div>
-        <button class="upload-button" id="upload-button" type="button">Upload image <span aria-hidden="true">&rarr;</span></button>
-        <input id="file-input" type="file" accept="image/jpeg,image/png,image/webp" hidden />
-      </section>
-      <div class="hint"><span class="mouse-icon" aria-hidden="true">◉</span><span>Drag to explore <b>·</b> Scroll to zoom</span></div>
-      <footer class="controls" aria-label="Viewer controls">
-        <button id="reset-button" class="control-button" type="button"><span aria-hidden="true">↺</span> Reset view</button>
-        <div class="zoom-controls">
-          <button id="zoom-out" class="icon-button" type="button" aria-label="Zoom out">−</button>
-          <span id="zoom-label">100%</span>
-          <button id="zoom-in" class="icon-button" type="button" aria-label="Zoom in">+</button>
-        </div>
-        <div class="credit">HORIZON / 01</div>
+
+      <main>
+        <section class="catalog-heading" aria-labelledby="page-title">
+          <div class="viewfinder viewfinder-heading" aria-hidden="true"><span></span><span></span></div>
+          <p class="eyebrow">Warner Bros. Discovery</p>
+          <h1 id="page-title">Virtual <em>Studios</em></h1>
+          <p class="catalog-intro">Step inside our broadcast environments. Select a studio to explore every angle in 360 or enter with a VR headset.</p>
+          <div class="catalog-meta">
+            <span><strong id="studio-count">--</strong> environments</span>
+            <span>360 + WebXR</span>
+          </div>
+        </section>
+
+        <section class="studio-section" aria-labelledby="studio-heading">
+          <div class="section-heading">
+            <h2 id="studio-heading">Choose a studio</h2>
+            <span>Drag. Look. Enter.</span>
+          </div>
+          <div id="studio-grid" class="studio-grid" aria-live="polite" aria-busy="true">
+            <div class="catalog-loading">
+              <div class="viewfinder loading-mark" aria-hidden="true"><span></span><span></span></div>
+              <p>Preparing studios</p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <span>Warner Bros. Discovery</span>
+        <span>TNT Sports Virtual Production</span>
       </footer>
-      <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    </main>
-    <script type="module" src="/src/main.js"></script>
+    </div>
+    <script type="module" src="/src/catalog.js"></script>
   </body>
 </html>
