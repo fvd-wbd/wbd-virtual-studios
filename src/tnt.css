@@ -171,6 +171,15 @@ h1 em { display: block; color: var(--white); font-family: 'TNT Sports Serif', Ge
 .viewer-loader.has-error .loading-mark { color: var(--white); animation: none; }
 .viewer-hint { position: fixed; z-index: 3; bottom: 98px; left: 50%; display: flex; align-items: center; gap: 10px; transform: translateX(-50%); color: var(--white); font-size: 10px; text-transform: uppercase; }
 .drag-symbol { display: grid; place-items: center; width: 31px; height: 31px; border: 1px solid var(--line); border-radius: 50%; color: var(--neon); font-size: 16px; }
+.studio-switcher { position: fixed; z-index: 3; right: clamp(20px, 4vw, 56px); bottom: 98px; left: clamp(20px, 4vw, 56px); display: flex; justify-content: space-between; pointer-events: none; }
+.studio-switcher button { display: flex; align-items: center; gap: 12px; max-width: 240px; padding: 0; border: 0; background: transparent; color: var(--white); cursor: pointer; text-align: left; pointer-events: auto; }
+.studio-switcher button:last-child { text-align: right; }
+.switch-arrow { display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 50%; color: var(--neon); font-size: 18px; transition: color .2s, border-color .2s, transform .2s; }
+.studio-switcher button:hover .switch-arrow { border-color: var(--neon); color: var(--white); transform: translateX(-3px); }
+.studio-switcher button:last-child:hover .switch-arrow { transform: translateX(3px); }
+.switch-copy { display: grid; gap: 3px; }
+.switch-copy small { color: var(--muted); font-size: 9px; text-transform: uppercase; }
+.switch-copy strong { max-width: 170px; overflow: hidden; font-size: 11px; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .viewer-controls { position: fixed; z-index: 3; right: clamp(20px, 4vw, 56px); bottom: 0; left: clamp(20px, 4vw, 56px); display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: 78px; border-top: 1px solid rgba(255,255,255,.3); }
 .text-control, .icon-button { border: 0; background: transparent; cursor: pointer; }
 .text-control { justify-self: start; padding: 10px 0; font-size: 11px; text-transform: uppercase; }
@@ -233,6 +242,13 @@ h1 em { display: block; color: var(--white); font-family: 'TNT Sports Serif', Ge
   .zoom-controls { justify-self: end; }
   .vr-slot { position: fixed; right: 20px; bottom: 83px; }
   .viewer-hint { bottom: 88px; left: 20px; transform: none; }
+  .studio-switcher { bottom: 84px; }
+  .switch-copy strong { display: none; }
+  .studio-switcher button { gap: 7px; }
+  .studio-switcher button:first-child .switch-copy { order: 2; }
+  .studio-switcher button:last-child .switch-copy { order: 1; }
+  .studio-switcher button:last-child .switch-arrow { order: 2; }
+  .viewer-hint { display: none; }
   .upload-panel { top: 48%; transform: translateY(-50%); }
   .upload-viewfinder { top: -30px; width: 55%; }
 }

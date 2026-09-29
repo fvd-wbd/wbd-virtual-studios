@@ -14,6 +14,9 @@ const loaderDetail = document.querySelector('#loader-detail');
 const toast = document.querySelector('#toast');
 const mode = document.body.dataset.mode;
 const manifestUrl = new URL(/* @vite-ignore */ '../studios.json', import.meta.url);
+const studioSwitcher = document.querySelector('#studio-switcher');
+const previousStudioButton = document.querySelector('#previous-studio');
+const nextStudioButton = document.querySelector('#next-studio');
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x101e28);
@@ -43,6 +46,8 @@ let isDragging = false;
 let lastX = 0;
 let lastY = 0;
 let activeObjectUrl = null;
+let studios = [];
+let currentStudioIndex = -1;
 
 function setLoading(visible, title, detail) {
   if (title) loaderTitle.textContent = title;
@@ -111,17 +116,41 @@ function loadTexture(url, label, isObjectUrl = false) {
   );
 }
 
+function updateStudioSwitcher() {
+  if (!studioSwitcher || studios.length < 2) {
+    studioSwitcher?.classList.add('is-hidden');
+    return;
+  }
+
+  const previousIndex = (currentStudioIndex - 1 + studios.length) % studios.length;
+  const nextIndex = (currentStudioIndex + 1) % studios.length;
+  document.querySelector('#previous-studio-name').textContent = studios[previousIndex].name;
+  document.querySelector('#next-studio-name').textContent = studios[nextIndex].name;
+  previousStudioButton.dataset.index = previousIndex;
+  nextStudioButton.dataset.index = nextIndex;
+}
+
+function navigateToStudio(index) {
+  const studio = studios[index];
+  if (!studio) return;
+  const viewerUrl = new URL('viewer/', manifestUrl);
+  viewerUrl.searchParams.set('studio', studio.id);
+  window.location.assign(viewerUrl);
+}
+
 async function loadSelectedStudio() {
   try {
     const response = await fetch(manifestUrl);
     if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`);
-    const studios = await response.json();
+    studios = await response.json();
     const studioId = new URLSearchParams(window.location.search).get('studio');
-    const studio = studios.find((item) => item.id === studioId);
-    if (!studio) {
+    currentStudioIndex = studios.findIndex((item) => item.id === studioId);
+    if (currentStudioIndex === -1) {
       window.location.replace(new URL('./', manifestUrl));
       return;
     }
+    const studio = studios[currentStudioIndex];
+    updateStudioSwitcher();
     loadTexture(new URL(studio.image, manifestUrl).href, studio.name);
   } catch (error) {
     console.error(error);
@@ -213,6 +242,12 @@ if (mode === 'upload') {
     loadLocalFile(event.dataTransfer.files[0]);
   });
 } else {
+  previousStudioButton.addEventListener('click', () => navigateToStudio(Number(previousStudioButton.dataset.index)));
+  nextStudioButton.addEventListener('click', () => navigateToStudio(Number(nextStudioButton.dataset.index)));
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowLeft') navigateToStudio(Number(previousStudioButton.dataset.index));
+    if (event.key === 'ArrowRight') navigateToStudio(Number(nextStudioButton.dataset.index));
+  });
   loadSelectedStudio();
 }
 
