@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { createAnnotator } from './annotator.js';
 import './tnt.css';
 
 const canvas = document.querySelector('#viewer');
@@ -18,6 +19,7 @@ const manifestUrl = new URL(/* @vite-ignore */ '../studios.json', import.meta.ur
 const studioSwitcher = document.querySelector('#studio-switcher');
 const previousStudioButton = document.querySelector('#previous-studio');
 const nextStudioButton = document.querySelector('#next-studio');
+const annotateButton = document.querySelector('#annotate-button');
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x101e28);
@@ -257,7 +259,29 @@ function loadLocalFile(file) {
   loadTexture(URL.createObjectURL(file), file.name, true);
 }
 
+const annotator = createAnnotator({
+  captureFrame() {
+    // The WebGL buffer is cleared after compositing, so render and read it in the same task.
+    renderer.render(scene, camera);
+    return renderer.domElement;
+  },
+  getLabel: () => imageStatus.textContent,
+  onOpen() {
+    isDragging = false;
+    canvas.classList.remove('is-dragging');
+    renderer.setAnimationLoop(null);
+  },
+  onClose() {
+    renderer.setAnimationLoop(animate);
+  },
+  showToast,
+});
+
 resetButton.addEventListener('click', resetView);
+annotateButton.addEventListener('click', () => {
+  if (!sphere.material.map || renderer.xr.isPresenting) return;
+  annotator.open();
+});
 motionButton.addEventListener('click', toggleMotion);
 zoomIn.addEventListener('click', () => setZoom(zoom - 5));
 zoomOut.addEventListener('click', () => setZoom(zoom + 5));
@@ -336,6 +360,7 @@ if (mode === 'upload') {
   previousStudioButton.addEventListener('click', () => navigateToStudio(Number(previousStudioButton.dataset.index)));
   nextStudioButton.addEventListener('click', () => navigateToStudio(Number(nextStudioButton.dataset.index)));
   window.addEventListener('keydown', (event) => {
+    if (annotator.isOpen) return;
     if (event.key === 'ArrowLeft') navigateToStudio(Number(previousStudioButton.dataset.index));
     if (event.key === 'ArrowRight') navigateToStudio(Number(nextStudioButton.dataset.index));
   });

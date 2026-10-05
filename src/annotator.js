@@ -1,0 +1,627 @@
+const COLORS = [
+  { name: 'White', value: '#ffffff' },
+  { name: 'Black', value: '#000000' },
+  { name: 'Pink', value: '#ff28ff' },
+  { name: 'Cyan', value: '#5fe6eb' },
+  { name: 'Yellow', value: '#ffd60a' },
+  { name: 'Red', value: '#ff3b30' },
+  { name: 'Green', value: '#34c759' },
+  { name: 'Blue', value: '#0a84ff' },
+];
+
+const FONTS = [
+  { name: 'Modern', family: "'TNT Sports Sans', 'Arial Narrow', Arial, sans-serif", weight: 700 },
+  { name: 'Classic', family: "Georgia, 'Times New Roman', serif", weight: 400 },
+  { name: 'Typewriter', family: "'Courier New', Courier, monospace", weight: 700 },
+  { name: 'Strong', family: "Impact, 'Arial Black', sans-serif", weight: 400 },
+  { name: 'Marker', family: "'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', cursive", weight: 700 },
+];
+
+const PEN_SIZE = { min: 3, max: 40 };
+const TEXT_SIZE = { min: 18, max: 96 };
+const TEXT_SHADOW = { color: 'rgba(0, 0, 0, 0.45)', blur: 6, offsetY: 1 };
+
+const ICONS = {
+  close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  undo: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>',
+  pen: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
+};
+
+const editableMode = (() => {
+  const probe = document.createElement('div');
+  try {
+    probe.contentEditable = 'plaintext-only';
+  } catch {
+    return 'true';
+  }
+  return probe.contentEditable === 'plaintext-only' ? 'plaintext-only' : 'true';
+})();
+
+function lerp(range, t) {
+  return range.min + (range.max - range.min) * t;
+}
+
+function contrastColor(hex) {
+  const value = parseInt(hex.slice(1), 16);
+  const brightness = ((value >> 16) * 299 + ((value >> 8) & 255) * 587 + (value & 255) * 114) / 1000;
+  return brightness > 150 ? '#000000' : '#ffffff';
+}
+
+function fontString(font, size) {
+  return `${font.weight} ${size}px ${font.family}`;
+}
+
+function wrapLines(ctx, text, maxWidth) {
+  const lines = [];
+  for (const paragraph of text.split('\n')) {
+    let line = '';
+    for (const word of paragraph.split(' ')) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (!line || ctx.measureText(candidate).width <= maxWidth) {
+        line = candidate;
+      } else {
+        lines.push(line);
+        line = word;
+      }
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+
+function drawStroke(ctx, stroke) {
+  const { points } = stroke;
+  ctx.strokeStyle = stroke.color;
+  ctx.fillStyle = stroke.color;
+  ctx.lineWidth = stroke.size;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+
+  if (points.length === 1) {
+    ctx.arc(points[0].x, points[0].y, stroke.size / 2, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length - 1; i += 1) {
+    const midX = (points[i].x + points[i + 1].x) / 2;
+    const midY = (points[i].y + points[i + 1].y) / 2;
+    ctx.quadraticCurveTo(points[i].x, points[i].y, midX, midY);
+  }
+  const last = points[points.length - 1];
+  ctx.lineTo(last.x, last.y);
+  ctx.stroke();
+}
+
+function timestamp() {
+  const now = new Date();
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showToast }) {
+  const layer = document.createElement('div');
+  layer.className = 'annotate-layer is-hidden';
+  layer.setAttribute('role', 'dialog');
+  layer.setAttribute('aria-label', 'Add comments');
+  layer.innerHTML = `
+    <canvas class="annotate-backdrop" aria-hidden="true"></canvas>
+    <canvas class="annotate-ink" aria-label="Drawing surface"></canvas>
+    <div class="annotate-texts"><div class="annotate-dim"></div></div>
+    <div class="annotate-top">
+      <button class="annotate-round" type="button" data-action="cancel" data-when="idle" aria-label="Discard comments">${ICONS.close}</button>
+      <button class="annotate-round annotate-style" type="button" data-action="style" data-when="edit" aria-label="Text background" aria-pressed="false"><span>A</span></button>
+      <div class="annotate-tools" data-when="idle">
+        <button class="annotate-round" type="button" data-action="undo" aria-label="Undo">${ICONS.undo}</button>
+        <button class="annotate-round" type="button" data-action="pen" aria-label="Draw" aria-pressed="true">${ICONS.pen}</button>
+        <button class="annotate-round annotate-aa" type="button" data-action="text" aria-label="Add text" aria-pressed="false">Aa</button>
+      </div>
+      <button class="annotate-save" type="button" data-action="save" data-when="idle">Save feedback</button>
+      <button class="annotate-save" type="button" data-action="done" data-when="edit">Done</button>
+    </div>
+    <div class="annotate-fonts" data-when="edit">
+      ${FONTS.map((font, index) => `<button type="button" data-font="${index}" style="font-family:${font.family.replace(/"/g, '&quot;')};font-weight:${font.weight}">${font.name}</button>`).join('')}
+    </div>
+    <div class="annotate-colors">
+      ${COLORS.map((color) => `<button class="annotate-swatch" type="button" data-color="${color.value}" style="--swatch:${color.value}" aria-label="${color.name}"></button>`).join('')}
+    </div>
+    <div class="annotate-size"><input type="range" min="0" max="100" step="1" aria-label="Size" /></div>
+    <div class="annotate-trash" aria-hidden="true">${ICONS.trash}</div>
+    <div class="annotate-size-preview" aria-hidden="true"></div>
+    <p class="annotate-hint">Draw on the studio or tap <b>Aa</b> to add text</p>
+  `;
+  document.body.append(layer);
+
+  const backdrop = layer.querySelector('.annotate-backdrop');
+  const ink = layer.querySelector('.annotate-ink');
+  const inkCtx = ink.getContext('2d');
+  const textLayer = layer.querySelector('.annotate-texts');
+  const dim = layer.querySelector('.annotate-dim');
+  const sizeInput = layer.querySelector('.annotate-size input');
+  const sizePreview = layer.querySelector('.annotate-size-preview');
+  const trash = layer.querySelector('.annotate-trash');
+  const hint = layer.querySelector('.annotate-hint');
+  const saveButton = layer.querySelector('[data-action="save"]');
+  const undoButton = layer.querySelector('[data-action="undo"]');
+  const penButton = layer.querySelector('[data-action="pen"]');
+  const textButton = layer.querySelector('[data-action="text"]');
+  const styleButton = layer.querySelector('[data-action="style"]');
+  const swatches = [...layer.querySelectorAll('[data-color]')];
+  const fontChips = [...layer.querySelectorAll('[data-font]')];
+
+  let isOpen = false;
+  let width = 0;
+  let height = 0;
+  let scale = 1;
+  let maxTextWidth = 0;
+  let penActive = true;
+  let color = '#ff28ff';
+  let penSize = 8;
+  let textSize = 36;
+  let fontIndex = 0;
+  let strokes = [];
+  let texts = [];
+  let actions = [];
+  let currentStroke = null;
+  let editing = null;
+  let drag = null;
+  let redrawQueued = false;
+
+  function pointFrom(event) {
+    const rect = ink.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  }
+
+  function redrawInk() {
+    redrawQueued = false;
+    inkCtx.clearRect(0, 0, width, height);
+    strokes.forEach((stroke) => drawStroke(inkCtx, stroke));
+  }
+
+  function requestRedraw() {
+    if (redrawQueued) return;
+    redrawQueued = true;
+    window.requestAnimationFrame(redrawInk);
+  }
+
+  function syncControls() {
+    swatches.forEach((swatch) => {
+      const active = swatch.dataset.color === color;
+      swatch.classList.toggle('is-active', active);
+      swatch.setAttribute('aria-pressed', String(active));
+    });
+    fontChips.forEach((chip) => chip.classList.toggle('is-active', Number(chip.dataset.font) === fontIndex));
+
+    const textTarget = editing || !penActive;
+    const range = textTarget ? TEXT_SIZE : PEN_SIZE;
+    const value = editing ? editing.size : textTarget ? textSize : penSize;
+    sizeInput.value = String(Math.round(((value - range.min) / (range.max - range.min)) * 100));
+
+    penButton.setAttribute('aria-pressed', String(penActive));
+    textButton.setAttribute('aria-pressed', String(!penActive));
+    styleButton.setAttribute('aria-pressed', String(Boolean(editing?.boxed)));
+    undoButton.disabled = actions.length === 0;
+    layer.classList.toggle('pen-active', penActive);
+  }
+
+  function hideHint() {
+    hint.classList.add('is-hidden');
+  }
+
+  function showSizePreview() {
+    sizePreview.style.width = `${penSize}px`;
+    sizePreview.style.height = `${penSize}px`;
+    sizePreview.style.background = color;
+    sizePreview.classList.add('visible');
+    window.clearTimeout(showSizePreview.timeout);
+    showSizePreview.timeout = window.setTimeout(() => sizePreview.classList.remove('visible'), 600);
+  }
+
+  function applyTextStyle(item) {
+    const font = FONTS[item.fontIndex];
+    const { style } = item.el;
+    style.fontFamily = font.family;
+    style.fontWeight = String(font.weight);
+    style.fontSize = `${item.size}px`;
+    style.background = item.boxed ? item.color : 'transparent';
+    style.color = item.boxed ? contrastColor(item.color) : item.color;
+    style.textShadow = item.boxed ? 'none' : `0 ${TEXT_SHADOW.offsetY}px ${TEXT_SHADOW.blur}px ${TEXT_SHADOW.color}`;
+  }
+
+  function positionText(item) {
+    item.el.style.left = `${item.x}px`;
+    item.el.style.top = `${item.y}px`;
+  }
+
+  function placeCaretAtEnd(el) {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  function startEditing(item) {
+    if (editing && editing !== item) finishEditing();
+    editing = item;
+    color = item.color;
+    fontIndex = item.fontIndex;
+    textSize = item.size;
+    item.el.contentEditable = editableMode;
+    item.el.classList.add('is-editing');
+    layer.classList.add('is-editing');
+    item.el.focus();
+    placeCaretAtEnd(item.el);
+    syncControls();
+  }
+
+  function removeText(item) {
+    item.el.remove();
+    texts = texts.filter((text) => text !== item);
+    actions = actions.filter((action) => action.item !== item);
+    if (editing === item) {
+      editing = null;
+      layer.classList.remove('is-editing');
+    }
+    syncControls();
+  }
+
+  function finishEditing() {
+    if (!editing) return;
+    const item = editing;
+    editing = null;
+    item.el.contentEditable = 'false';
+    item.el.classList.remove('is-editing');
+    layer.classList.remove('is-editing');
+    item.el.blur();
+    window.getSelection()?.removeAllRanges();
+    if (!item.el.innerText.trim()) removeText(item);
+    syncControls();
+  }
+
+  function isOverTrash(event) {
+    const rect = trash.getBoundingClientRect();
+    return Math.hypot(event.clientX - (rect.left + rect.width / 2), event.clientY - (rect.top + rect.height / 2)) < 56;
+  }
+
+  function endDrag() {
+    drag = null;
+    layer.classList.remove('is-dragging-text');
+    trash.classList.remove('is-over');
+  }
+
+  function attachTextEvents(item) {
+    const { el } = item;
+    el.addEventListener('pointerdown', (event) => {
+      if (editing === item) return;
+      event.preventDefault();
+      event.stopPropagation();
+      finishEditing();
+      el.setPointerCapture(event.pointerId);
+      drag = { item, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, originX: item.x, originY: item.y, moved: false };
+    });
+    el.addEventListener('pointermove', (event) => {
+      if (drag?.item !== item || event.pointerId !== drag.pointerId) return;
+      const dx = event.clientX - drag.startX;
+      const dy = event.clientY - drag.startY;
+      if (!drag.moved && Math.hypot(dx, dy) < 6) return;
+      if (!drag.moved) {
+        drag.moved = true;
+        layer.classList.add('is-dragging-text');
+      }
+      item.x = Math.min(Math.max(drag.originX + dx, 0), width);
+      item.y = Math.min(Math.max(drag.originY + dy, 0), height);
+      positionText(item);
+      trash.classList.toggle('is-over', isOverTrash(event));
+    });
+    el.addEventListener('pointerup', (event) => {
+      if (drag?.item !== item || event.pointerId !== drag.pointerId) return;
+      const { moved } = drag;
+      endDrag();
+      if (!moved) startEditing(item);
+      else if (isOverTrash(event)) removeText(item);
+    });
+    el.addEventListener('pointercancel', () => {
+      if (drag?.item === item) endDrag();
+    });
+    el.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        finishEditing();
+      }
+    });
+    if (editableMode === 'true') {
+      el.addEventListener('paste', (event) => {
+        event.preventDefault();
+        document.execCommand('insertText', false, event.clipboardData.getData('text/plain'));
+      });
+    }
+  }
+
+  function addText(point) {
+    finishEditing();
+    const el = document.createElement('div');
+    el.className = 'annotate-text';
+    el.setAttribute('role', 'textbox');
+    el.setAttribute('aria-label', 'Comment text');
+    el.spellcheck = false;
+    const item = { el, x: point.x, y: point.y, color, fontIndex, size: textSize, boxed: false };
+    texts.push(item);
+    actions.push({ type: 'text', item });
+    applyTextStyle(item);
+    positionText(item);
+    attachTextEvents(item);
+    textLayer.append(el);
+    hideHint();
+    startEditing(item);
+  }
+
+  function undo() {
+    finishEditing();
+    const action = actions.pop();
+    if (!action) return;
+    if (action.type === 'stroke') {
+      strokes = strokes.filter((stroke) => stroke !== action.item);
+      requestRedraw();
+    } else {
+      removeText(action.item);
+    }
+    syncControls();
+  }
+
+  function drawText(ctx, item) {
+    const text = item.el.innerText.replace(/\n+$/, '');
+    if (!text.trim()) return;
+    const font = FONTS[item.fontIndex];
+    ctx.font = fontString(font, item.size);
+    const padX = item.size * 0.35;
+    const padY = item.size * 0.12;
+    const lineHeight = item.size * 1.2;
+    const lines = wrapLines(ctx, text, maxTextWidth - padX * 2);
+    const blockWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
+    const blockHeight = lines.length * lineHeight;
+
+    ctx.save();
+    if (item.boxed) {
+      const boxX = item.x - blockWidth / 2 - padX;
+      const boxY = item.y - blockHeight / 2 - padY;
+      ctx.fillStyle = item.color;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(boxX, boxY, blockWidth + padX * 2, blockHeight + padY * 2, item.size * 0.25);
+      else ctx.rect(boxX, boxY, blockWidth + padX * 2, blockHeight + padY * 2);
+      ctx.fill();
+      ctx.fillStyle = contrastColor(item.color);
+    } else {
+      // Shadow values ignore the canvas transform, so scale them by hand.
+      ctx.fillStyle = item.color;
+      ctx.shadowColor = TEXT_SHADOW.color;
+      ctx.shadowBlur = TEXT_SHADOW.blur * scale;
+      ctx.shadowOffsetY = TEXT_SHADOW.offsetY * scale;
+    }
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    lines.forEach((line, index) => {
+      ctx.fillText(line, item.x, item.y - blockHeight / 2 + lineHeight * (index + 0.5));
+    });
+    ctx.restore();
+  }
+
+  function exportImage() {
+    const output = document.createElement('canvas');
+    output.width = backdrop.width;
+    output.height = backdrop.height;
+    const ctx = output.getContext('2d');
+    ctx.drawImage(backdrop, 0, 0);
+    ctx.drawImage(ink, 0, 0);
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    texts.forEach((item) => drawText(ctx, item));
+    return new Promise((resolve, reject) => {
+      output.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('PNG export failed.'))), 'image/png');
+    });
+  }
+
+  function feedbackFilename() {
+    const slug = (getLabel() || 'studio')
+      .toLowerCase()
+      .replace(/\.[a-z0-9]+$/, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || 'studio';
+    return `feedback-${slug}-${timestamp()}.png`;
+  }
+
+  function open() {
+    if (isOpen) return;
+    onOpen();
+    const source = captureFrame();
+    width = window.innerWidth;
+    height = window.innerHeight;
+    scale = source.width / width;
+    maxTextWidth = width - 48;
+
+    backdrop.width = source.width;
+    backdrop.height = source.height;
+    backdrop.getContext('2d').drawImage(source, 0, 0);
+    ink.width = source.width;
+    ink.height = source.height;
+    inkCtx.setTransform(scale, 0, 0, scale, 0, 0);
+    [backdrop, ink, textLayer].forEach((el) => {
+      el.style.width = `${width}px`;
+      el.style.height = `${height}px`;
+    });
+    layer.style.setProperty('--max-text-width', `${maxTextWidth}px`);
+
+    strokes = [];
+    texts.forEach((item) => item.el.remove());
+    texts = [];
+    actions = [];
+    currentStroke = null;
+    editing = null;
+    penActive = true;
+    redrawInk();
+    hint.classList.remove('is-hidden');
+    layer.classList.remove('is-editing', 'is-dragging-text');
+    layer.classList.remove('is-hidden');
+    isOpen = true;
+    syncControls();
+  }
+
+  function close() {
+    if (!isOpen) return;
+    finishEditing();
+    endDrag();
+    isOpen = false;
+    layer.classList.add('is-hidden');
+    texts.forEach((item) => item.el.remove());
+    texts = [];
+    strokes = [];
+    actions = [];
+    onClose();
+  }
+
+  async function save() {
+    finishEditing();
+    saveButton.disabled = true;
+    try {
+      await document.fonts?.ready;
+      downloadBlob(await exportImage(), feedbackFilename());
+      close();
+      showToast('Feedback saved as PNG.');
+    } catch (error) {
+      console.error(error);
+      showToast('Feedback could not be saved. Try again.');
+    } finally {
+      saveButton.disabled = false;
+    }
+  }
+
+  function cancel() {
+    if (actions.length && !window.confirm('Discard your comments and return to the 360 view?')) return;
+    close();
+  }
+
+  ink.addEventListener('pointerdown', (event) => {
+    if (!penActive || currentStroke) return;
+    event.preventDefault();
+    ink.setPointerCapture(event.pointerId);
+    currentStroke = { pointerId: event.pointerId, color, size: penSize, points: [pointFrom(event)] };
+    strokes.push(currentStroke);
+    actions.push({ type: 'stroke', item: currentStroke });
+    hideHint();
+    syncControls();
+    requestRedraw();
+  });
+  ink.addEventListener('pointermove', (event) => {
+    if (currentStroke?.pointerId !== event.pointerId) return;
+    const coalesced = event.getCoalescedEvents?.() ?? [];
+    (coalesced.length ? coalesced : [event]).forEach((item) => currentStroke.points.push(pointFrom(item)));
+    requestRedraw();
+  });
+  const endStroke = (event) => {
+    if (currentStroke?.pointerId === event.pointerId) currentStroke = null;
+  };
+  ink.addEventListener('pointerup', endStroke);
+  ink.addEventListener('pointercancel', endStroke);
+  // Text placement uses click so mobile browsers treat the focus as user-initiated and open the keyboard.
+  ink.addEventListener('click', (event) => {
+    if (!penActive && !editing) addText(pointFrom(event));
+  });
+  dim.addEventListener('click', finishEditing);
+
+  // Keep focus in the text being edited while tapping toolbar buttons.
+  layer.addEventListener('mousedown', (event) => {
+    if (editing && event.target.closest('button')) event.preventDefault();
+  });
+
+  layer.addEventListener('click', (event) => {
+    const swatch = event.target.closest('[data-color]');
+    if (swatch) {
+      color = swatch.dataset.color;
+      if (editing) {
+        editing.color = color;
+        applyTextStyle(editing);
+      } else if (penActive) {
+        showSizePreview();
+      }
+      syncControls();
+      return;
+    }
+
+    const chip = event.target.closest('[data-font]');
+    if (chip) {
+      fontIndex = Number(chip.dataset.font);
+      if (editing) {
+        editing.fontIndex = fontIndex;
+        applyTextStyle(editing);
+      }
+      syncControls();
+      return;
+    }
+
+    switch (event.target.closest('[data-action]')?.dataset.action) {
+      case 'cancel': cancel(); break;
+      case 'save': save(); break;
+      case 'undo': undo(); break;
+      case 'done': finishEditing(); break;
+      case 'pen':
+        penActive = true;
+        syncControls();
+        break;
+      case 'text':
+        penActive = false;
+        addText({ x: width / 2, y: height * 0.35 });
+        break;
+      case 'style':
+        if (editing) {
+          editing.boxed = !editing.boxed;
+          applyTextStyle(editing);
+          syncControls();
+        }
+        break;
+      default:
+    }
+  });
+
+  sizeInput.addEventListener('input', () => {
+    const t = Number(sizeInput.value) / 100;
+    if (editing) {
+      textSize = editing.size = Math.round(lerp(TEXT_SIZE, t));
+      applyTextStyle(editing);
+    } else if (penActive) {
+      penSize = Math.round(lerp(PEN_SIZE, t));
+      showSizePreview();
+    } else {
+      textSize = Math.round(lerp(TEXT_SIZE, t));
+    }
+  });
+
+  window.addEventListener('keydown', (event) => {
+    if (!isOpen || editing) return;
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+      event.preventDefault();
+      undo();
+    }
+  });
+
+  return {
+    open,
+    close,
+    get isOpen() {
+      return isOpen;
+    },
+  };
+}
