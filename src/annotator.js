@@ -25,6 +25,8 @@ const ICONS = {
   close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   undo: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>',
   pen: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg>',
+  rect: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="1"/></svg>',
+  circle: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/></svg>',
   trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
 };
 
@@ -70,6 +72,14 @@ function wrapLines(ctx, text, maxWidth) {
   return lines;
 }
 
+function constrainSquare(start, end) {
+  const side = Math.max(Math.abs(end.x - start.x), Math.abs(end.y - start.y));
+  return {
+    x: start.x + Math.sign(end.x - start.x || 1) * side,
+    y: start.y + Math.sign(end.y - start.y || 1) * side,
+  };
+}
+
 function drawStroke(ctx, stroke) {
   const { points } = stroke;
   ctx.strokeStyle = stroke.color;
@@ -78,6 +88,18 @@ function drawStroke(ctx, stroke) {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.beginPath();
+
+  if (stroke.shape !== 'pen') {
+    const [start, end] = points;
+    const x = Math.min(start.x, end.x);
+    const y = Math.min(start.y, end.y);
+    const w = Math.abs(end.x - start.x);
+    const h = Math.abs(end.y - start.y);
+    if (stroke.shape === 'rect') ctx.rect(x, y, w, h);
+    else ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    return;
+  }
 
   if (points.length === 1) {
     ctx.arc(points[0].x, points[0].y, stroke.size / 2, 0, Math.PI * 2);
@@ -123,15 +145,19 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
     <canvas class="annotate-ink" aria-label="Drawing surface"></canvas>
     <div class="annotate-texts"><div class="annotate-dim"></div></div>
     <div class="annotate-top">
-      <button class="annotate-round" type="button" data-action="cancel" data-when="idle" aria-label="Discard comments">${ICONS.close}</button>
-      <button class="annotate-round annotate-style" type="button" data-action="style" data-when="edit" aria-label="Text background" aria-pressed="false"><span>A</span></button>
-      <div class="annotate-tools" data-when="idle">
+      <div class="annotate-actions" data-when="idle">
+        <button class="annotate-round" type="button" data-action="cancel" aria-label="Discard comments">${ICONS.close}</button>
         <button class="annotate-round" type="button" data-action="undo" aria-label="Undo">${ICONS.undo}</button>
-        <button class="annotate-round" type="button" data-action="pen" aria-label="Draw" aria-pressed="true">${ICONS.pen}</button>
-        <button class="annotate-round annotate-aa" type="button" data-action="text" aria-label="Add text" aria-pressed="false">Aa</button>
       </div>
+      <button class="annotate-round annotate-style" type="button" data-action="style" data-when="edit" aria-label="Text background" aria-pressed="false"><span>A</span></button>
       <button class="annotate-save" type="button" data-action="save" data-when="idle">Save feedback</button>
       <button class="annotate-save" type="button" data-action="done" data-when="edit">Done</button>
+    </div>
+    <div class="annotate-tools" data-when="idle">
+      <button class="annotate-round" type="button" data-action="tool" data-tool="pen" aria-label="Draw" title="Draw">${ICONS.pen}</button>
+      <button class="annotate-round" type="button" data-action="tool" data-tool="rect" aria-label="Box" title="Box">${ICONS.rect}</button>
+      <button class="annotate-round" type="button" data-action="tool" data-tool="circle" aria-label="Circle" title="Circle">${ICONS.circle}</button>
+      <button class="annotate-round annotate-aa" type="button" data-action="tool" data-tool="text" aria-label="Add text" title="Add text">Aa</button>
     </div>
     <div class="annotate-fonts" data-when="edit">
       ${FONTS.map((font, index) => `<button type="button" data-font="${index}" style="font-family:${font.family.replace(/"/g, '&quot;')};font-weight:${font.weight}">${font.name}</button>`).join('')}
@@ -142,7 +168,7 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
     <div class="annotate-size"><input type="range" min="0" max="100" step="1" aria-label="Size" /></div>
     <div class="annotate-trash" aria-hidden="true">${ICONS.trash}</div>
     <div class="annotate-size-preview" aria-hidden="true"></div>
-    <p class="annotate-hint">Draw on the studio or tap <b>Aa</b> to add text</p>
+    <p class="annotate-hint">Draw, add a box or circle, or tap <b>Aa</b> for text</p>
   `;
   document.body.append(layer);
 
@@ -157,8 +183,7 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
   const hint = layer.querySelector('.annotate-hint');
   const saveButton = layer.querySelector('[data-action="save"]');
   const undoButton = layer.querySelector('[data-action="undo"]');
-  const penButton = layer.querySelector('[data-action="pen"]');
-  const textButton = layer.querySelector('[data-action="text"]');
+  const toolButtons = [...layer.querySelectorAll('[data-tool]')];
   const styleButton = layer.querySelector('[data-action="style"]');
   const swatches = [...layer.querySelectorAll('[data-color]')];
   const fontChips = [...layer.querySelectorAll('[data-font]')];
@@ -168,7 +193,7 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
   let height = 0;
   let scale = 1;
   let maxTextWidth = 0;
-  let penActive = true;
+  let tool = 'pen';
   let color = '#ff28ff';
   let penSize = 8;
   let textSize = 36;
@@ -206,16 +231,15 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
     });
     fontChips.forEach((chip) => chip.classList.toggle('is-active', Number(chip.dataset.font) === fontIndex));
 
-    const textTarget = editing || !penActive;
+    const textTarget = editing || tool === 'text';
     const range = textTarget ? TEXT_SIZE : PEN_SIZE;
     const value = editing ? editing.size : textTarget ? textSize : penSize;
     sizeInput.value = String(Math.round(((value - range.min) / (range.max - range.min)) * 100));
 
-    penButton.setAttribute('aria-pressed', String(penActive));
-    textButton.setAttribute('aria-pressed', String(!penActive));
+    toolButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.tool === tool)));
     styleButton.setAttribute('aria-pressed', String(Boolean(editing?.boxed)));
     undoButton.disabled = actions.length === 0;
-    layer.classList.toggle('pen-active', penActive);
+    layer.dataset.activeTool = tool;
   }
 
   function hideHint() {
@@ -471,7 +495,7 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
     actions = [];
     currentStroke = null;
     editing = null;
-    penActive = true;
+    tool = 'pen';
     redrawInk();
     hint.classList.remove('is-hidden');
     layer.classList.remove('is-editing', 'is-dragging-text');
@@ -515,10 +539,12 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
   }
 
   ink.addEventListener('pointerdown', (event) => {
-    if (!penActive || currentStroke) return;
+    if (tool === 'text' || currentStroke) return;
     event.preventDefault();
     ink.setPointerCapture(event.pointerId);
-    currentStroke = { pointerId: event.pointerId, color, size: penSize, points: [pointFrom(event)] };
+    const start = pointFrom(event);
+    const points = tool === 'pen' ? [start] : [start, start];
+    currentStroke = { pointerId: event.pointerId, shape: tool, color, size: penSize, points };
     strokes.push(currentStroke);
     actions.push({ type: 'stroke', item: currentStroke });
     hideHint();
@@ -527,18 +553,36 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
   });
   ink.addEventListener('pointermove', (event) => {
     if (currentStroke?.pointerId !== event.pointerId) return;
-    const coalesced = event.getCoalescedEvents?.() ?? [];
-    (coalesced.length ? coalesced : [event]).forEach((item) => currentStroke.points.push(pointFrom(item)));
+    if (currentStroke.shape === 'pen') {
+      const coalesced = event.getCoalescedEvents?.() ?? [];
+      (coalesced.length ? coalesced : [event]).forEach((item) => currentStroke.points.push(pointFrom(item)));
+    } else {
+      // Hold Shift for a perfect square or circle.
+      const [start] = currentStroke.points;
+      const end = pointFrom(event);
+      currentStroke.points[1] = event.shiftKey ? constrainSquare(start, end) : end;
+    }
     requestRedraw();
   });
   const endStroke = (event) => {
-    if (currentStroke?.pointerId === event.pointerId) currentStroke = null;
+    if (currentStroke?.pointerId !== event.pointerId) return;
+    const stroke = currentStroke;
+    currentStroke = null;
+    if (stroke.shape === 'pen') return;
+    // Drop shapes from a tap without a drag.
+    const [start, end] = stroke.points;
+    if (Math.abs(end.x - start.x) < 4 && Math.abs(end.y - start.y) < 4) {
+      strokes = strokes.filter((item) => item !== stroke);
+      actions = actions.filter((action) => action.item !== stroke);
+      syncControls();
+      requestRedraw();
+    }
   };
   ink.addEventListener('pointerup', endStroke);
   ink.addEventListener('pointercancel', endStroke);
   // Text placement uses click so mobile browsers treat the focus as user-initiated and open the keyboard.
   ink.addEventListener('click', (event) => {
-    if (!penActive && !editing) addText(pointFrom(event));
+    if (tool === 'text' && !editing) addText(pointFrom(event));
   });
   dim.addEventListener('click', finishEditing);
 
@@ -554,7 +598,7 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
       if (editing) {
         editing.color = color;
         applyTextStyle(editing);
-      } else if (penActive) {
+      } else if (tool !== 'text') {
         showSizePreview();
       }
       syncControls();
@@ -577,13 +621,10 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
       case 'save': save(); break;
       case 'undo': undo(); break;
       case 'done': finishEditing(); break;
-      case 'pen':
-        penActive = true;
-        syncControls();
-        break;
-      case 'text':
-        penActive = false;
-        addText({ x: width / 2, y: height * 0.35 });
+      case 'tool':
+        tool = event.target.closest('[data-tool]').dataset.tool;
+        if (tool === 'text') addText({ x: width / 2, y: height * 0.35 });
+        else syncControls();
         break;
       case 'style':
         if (editing) {
@@ -601,7 +642,7 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
     if (editing) {
       textSize = editing.size = Math.round(lerp(TEXT_SIZE, t));
       applyTextStyle(editing);
-    } else if (penActive) {
+    } else if (tool !== 'text') {
       penSize = Math.round(lerp(PEN_SIZE, t));
       showSizePreview();
     } else {
