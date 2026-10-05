@@ -210,6 +210,10 @@ h1 em { display: block; color: var(--white); font-family: 'TNT Sports Serif', Ge
 .annotate-layer > canvas, .annotate-texts { position: absolute; top: 0; left: 0; }
 .annotate-ink { touch-action: none; cursor: crosshair; }
 .annotate-layer[data-active-tool="text"] .annotate-ink { cursor: text; }
+.annotate-ink.is-over-object { cursor: move !important; }
+.annotate-layer[data-active-tool="eraser"] .annotate-ink { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='12' cy='12' r='9' fill='rgba(255,255,255,.25)' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 12 12, crosshair; }
+.annotate-layer[data-active-tool="eraser"] .annotate-ink.is-over-object, .annotate-layer[data-active-tool="eraser"] .annotate-text { cursor: pointer !important; }
+.annotate-layer[data-active-tool="eraser"]:not(.is-editing) :is(.annotate-size, .annotate-colors) { visibility: hidden; }
 .annotate-texts { pointer-events: none; }
 .annotate-dim { position: absolute; z-index: 1; inset: 0; background: rgba(0,0,0,.5); opacity: 0; pointer-events: none; transition: opacity .2s; }
 .annotate-layer.is-editing .annotate-dim { opacity: 1; pointer-events: auto; }
@@ -256,9 +260,9 @@ h1 em { display: block; color: var(--white); font-family: 'TNT Sports Serif', Ge
 
 .annotate-trash { position: absolute; z-index: 3; bottom: calc(max(18px, env(safe-area-inset-bottom)) + 8px); left: 50%; display: grid; place-items: center; width: 56px; height: 56px; border: 2px solid rgba(255,255,255,.85); border-radius: 50%; background: rgba(0,0,0,.45); color: var(--white); opacity: 0; pointer-events: none; transform: translateX(-50%) scale(.8); transition: opacity .2s, transform .2s, background .2s; }
 .annotate-trash svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.annotate-layer.is-dragging-text .annotate-trash { opacity: 1; transform: translateX(-50%); }
+.annotate-layer.is-dragging-object .annotate-trash { opacity: 1; transform: translateX(-50%); }
 .annotate-trash.is-over { border-color: #ff3b30; background: #ff3b30; transform: translateX(-50%) scale(1.2) !important; }
-.annotate-layer.is-dragging-text :is(.annotate-top, .annotate-tools, .annotate-colors, .annotate-size, .annotate-hint) { opacity: 0; pointer-events: none; }
+.annotate-layer.is-dragging-object :is(.annotate-top, .annotate-tools, .annotate-colors, .annotate-size, .annotate-hint) { opacity: 0; pointer-events: none; }
 
 .annotate-hint { position: absolute; z-index: 3; bottom: calc(max(18px, env(safe-area-inset-bottom)) + 66px); left: 50%; margin: 0; padding: 8px 14px; border-radius: 16px; background: rgba(0,0,0,.5); color: var(--white); font-size: 12px; white-space: nowrap; pointer-events: none; transform: translateX(-50%); }
 .annotate-layer.is-editing .annotate-hint { display: none; }

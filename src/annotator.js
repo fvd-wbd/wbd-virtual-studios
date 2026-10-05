@@ -27,6 +27,7 @@ const ICONS = {
   pen: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg>',
   rect: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="1"/></svg>',
   circle: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/></svg>',
+  eraser: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 20H9l-5-5a2 2 0 010-2.8L13.2 3a2 2 0 012.8 0L21 8a2 2 0 010 2.8L11 20"/><path d="M7 10l7 7"/></svg>',
   trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
 };
 
@@ -78,6 +79,51 @@ function constrainSquare(start, end) {
     x: start.x + Math.sign(end.x - start.x || 1) * side,
     y: start.y + Math.sign(end.y - start.y || 1) * side,
   };
+}
+
+function distanceToSegment(p, a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lengthSq = dx * dx + dy * dy;
+  const t = lengthSq ? Math.min(Math.max(((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq, 0), 1) : 0;
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+// Shapes are outlines, so only the border (plus some slack for fingers) counts as a hit.
+function hitStroke(stroke, p) {
+  const tolerance = stroke.size / 2 + 10;
+  const { points } = stroke;
+
+  if (stroke.shape === 'pen') {
+    if (points.length === 1) return Math.hypot(p.x - points[0].x, p.y - points[0].y) <= tolerance;
+    for (let i = 1; i < points.length; i += 1) {
+      if (distanceToSegment(p, points[i - 1], points[i]) <= tolerance) return true;
+    }
+    return false;
+  }
+
+  const [start, end] = points;
+  const x = Math.min(start.x, end.x);
+  const y = Math.min(start.y, end.y);
+  const w = Math.abs(end.x - start.x);
+  const h = Math.abs(end.y - start.y);
+  const inOuter = p.x >= x - tolerance && p.x <= x + w + tolerance && p.y >= y - tolerance && p.y <= y + h + tolerance;
+  if (!inOuter) return false;
+
+  if (stroke.shape === 'rect') {
+    const inInner = p.x > x + tolerance && p.x < x + w - tolerance && p.y > y + tolerance && p.y < y + h - tolerance;
+    return !inInner;
+  }
+
+  const rx = w / 2;
+  const ry = h / 2;
+  if (rx < tolerance || ry < tolerance) return true;
+  const dx = p.x - (x + rx);
+  const dy = p.y - (y + ry);
+  const distance = Math.hypot(dx, dy);
+  if (!distance) return Math.min(rx, ry) <= tolerance;
+  const radius = distance / Math.hypot(dx / rx, dy / ry);
+  return Math.abs(distance - radius) <= tolerance;
 }
 
 function drawStroke(ctx, stroke) {
@@ -158,6 +204,7 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
       <button class="annotate-round" type="button" data-action="tool" data-tool="rect" aria-label="Box" title="Box">${ICONS.rect}</button>
       <button class="annotate-round" type="button" data-action="tool" data-tool="circle" aria-label="Circle" title="Circle">${ICONS.circle}</button>
       <button class="annotate-round annotate-aa" type="button" data-action="tool" data-tool="text" aria-label="Add text" title="Add text">Aa</button>
+      <button class="annotate-round" type="button" data-action="tool" data-tool="eraser" aria-label="Eraser" title="Eraser">${ICONS.eraser}</button>
     </div>
     <div class="annotate-fonts" data-when="edit">
       ${FONTS.map((font, index) => `<button type="button" data-font="${index}" style="font-family:${font.family.replace(/"/g, '&quot;')};font-weight:${font.weight}">${font.name}</button>`).join('')}
@@ -204,7 +251,12 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
   let currentStroke = null;
   let editing = null;
   let drag = null;
+  let shapeDrag = null;
+  let erasingPointer = null;
+  let suppressClick = false;
   let redrawQueued = false;
+
+  const drawsInk = () => tool === 'pen' || tool === 'rect' || tool === 'circle';
 
   function pointFrom(event) {
     const rect = ink.getBoundingClientRect();
@@ -325,8 +377,54 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
 
   function endDrag() {
     drag = null;
-    layer.classList.remove('is-dragging-text');
+    layer.classList.remove('is-dragging-object');
     trash.classList.remove('is-over');
+  }
+
+  function eraseItem(kind, item) {
+    const list = kind === 'text' ? texts : strokes;
+    const index = list.indexOf(item);
+    if (index === -1) return;
+    list.splice(index, 1);
+    if (kind === 'text') item.el.remove();
+    else requestRedraw();
+    actions.push({ type: 'erase', kind, item, index });
+    hideHint();
+    syncControls();
+  }
+
+  function restoreErased({ kind, item, index }) {
+    if (kind === 'text') {
+      texts.splice(index, 0, item);
+      textLayer.append(item.el);
+    } else {
+      strokes.splice(index, 0, item);
+      requestRedraw();
+    }
+  }
+
+  function findTextAt(point) {
+    const origin = ink.getBoundingClientRect();
+    return [...texts].reverse().find((item) => {
+      const rect = item.el.getBoundingClientRect();
+      const x = point.x + origin.left;
+      const y = point.y + origin.top;
+      return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+    });
+  }
+
+  function findStrokeAt(point, shapesOnly = false) {
+    return [...strokes].reverse().find((stroke) => (!shapesOnly || stroke.shape !== 'pen') && hitStroke(stroke, point));
+  }
+
+  function eraseAt(point) {
+    const text = findTextAt(point);
+    if (text) {
+      eraseItem('text', text);
+      return;
+    }
+    const stroke = findStrokeAt(point);
+    if (stroke) eraseItem('stroke', stroke);
   }
 
   function attachTextEvents(item) {
@@ -335,6 +433,10 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
       if (editing === item) return;
       event.preventDefault();
       event.stopPropagation();
+      if (tool === 'eraser') {
+        eraseItem('text', item);
+        return;
+      }
       finishEditing();
       el.setPointerCapture(event.pointerId);
       drag = { item, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, originX: item.x, originY: item.y, moved: false };
@@ -346,19 +448,23 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
       if (!drag.moved && Math.hypot(dx, dy) < 6) return;
       if (!drag.moved) {
         drag.moved = true;
-        layer.classList.add('is-dragging-text');
+        layer.classList.add('is-dragging-object');
       }
-      item.x = Math.min(Math.max(drag.originX + dx, 0), width);
+      item.x =Math.min(Math.max(drag.originX + dx, 0), width);
       item.y = Math.min(Math.max(drag.originY + dy, 0), height);
       positionText(item);
       trash.classList.toggle('is-over', isOverTrash(event));
     });
     el.addEventListener('pointerup', (event) => {
       if (drag?.item !== item || event.pointerId !== drag.pointerId) return;
-      const { moved } = drag;
+      const { moved, originX, originY } = drag;
       endDrag();
       if (!moved) startEditing(item);
       else if (isOverTrash(event)) removeText(item);
+      else {
+        actions.push({ type: 'move', item, from: { x: originX, y: originY } });
+        syncControls();
+      }
     });
     el.addEventListener('pointercancel', () => {
       if (drag?.item === item) endDrag();
@@ -399,7 +505,17 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
     finishEditing();
     const action = actions.pop();
     if (!action) return;
-    if (action.type === 'stroke') {
+    if (action.type === 'erase') {
+      restoreErased(action);
+    } else if (action.type === 'move') {
+      if (action.item.el) {
+        Object.assign(action.item, action.from);
+        positionText(action.item);
+      } else {
+        action.item.points = action.from;
+        requestRedraw();
+      }
+    } else if (action.type === 'stroke') {
       strokes = strokes.filter((stroke) => stroke !== action.item);
       requestRedraw();
     } else {
@@ -472,6 +588,10 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
     if (isOpen) return;
     onOpen();
     const source = captureFrame();
+    if (!source.width || !source.height) {
+      onClose();
+      return;
+    }
     width = window.innerWidth;
     height = window.innerHeight;
     scale = source.width / width;
@@ -494,11 +614,13 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
     texts = [];
     actions = [];
     currentStroke = null;
+    shapeDrag = null;
+    erasingPointer = null;
     editing = null;
     tool = 'pen';
     redrawInk();
     hint.classList.remove('is-hidden');
-    layer.classList.remove('is-editing', 'is-dragging-text');
+    layer.classList.remove('is-editing', 'is-dragging-object');
     layer.classList.remove('is-hidden');
     isOpen = true;
     syncControls();
@@ -538,11 +660,38 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
     close();
   }
 
+  function removeStroke(stroke) {
+    strokes = strokes.filter((item) => item !== stroke);
+    actions = actions.filter((action) => action.item !== stroke);
+    syncControls();
+    requestRedraw();
+  }
+
   ink.addEventListener('pointerdown', (event) => {
-    if (tool === 'text' || currentStroke) return;
+    if (currentStroke || shapeDrag || erasingPointer !== null) return;
+    const start = pointFrom(event);
+
+    if (tool === 'eraser') {
+      event.preventDefault();
+      ink.setPointerCapture(event.pointerId);
+      erasingPointer = event.pointerId;
+      eraseAt(start);
+      return;
+    }
+
+    // Grabbing an existing box or circle moves it instead of drawing.
+    const shape = findStrokeAt(start, true);
+    if (shape) {
+      event.preventDefault();
+      ink.setPointerCapture(event.pointerId);
+      shapeDrag = { stroke: shape, pointerId: event.pointerId, start, origin: shape.points.map((p) => ({ ...p })), moved: false };
+      suppressClick = true;
+      return;
+    }
+
+    if (tool === 'text') return;
     event.preventDefault();
     ink.setPointerCapture(event.pointerId);
-    const start = pointFrom(event);
     const points = tool === 'pen' ? [start] : [start, start];
     currentStroke = { pointerId: event.pointerId, shape: tool, color, size: penSize, points };
     strokes.push(currentStroke);
@@ -552,7 +701,33 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
     requestRedraw();
   });
   ink.addEventListener('pointermove', (event) => {
-    if (currentStroke?.pointerId !== event.pointerId) return;
+    if (shapeDrag?.pointerId === event.pointerId) {
+      const point = pointFrom(event);
+      const dx = point.x - shapeDrag.start.x;
+      const dy = point.y - shapeDrag.start.y;
+      if (!shapeDrag.moved && Math.hypot(dx, dy) < 4) return;
+      if (!shapeDrag.moved) {
+        shapeDrag.moved = true;
+        layer.classList.add('is-dragging-object');
+      }
+      shapeDrag.stroke.points = shapeDrag.origin.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+      trash.classList.toggle('is-over', isOverTrash(event));
+      requestRedraw();
+      return;
+    }
+    if (erasingPointer === event.pointerId) {
+      eraseAt(pointFrom(event));
+      return;
+    }
+    if (currentStroke?.pointerId !== event.pointerId) {
+      // Hover feedback for mouse users: show what can be grabbed or erased.
+      if (event.pointerType === 'mouse' && !currentStroke) {
+        const point = pointFrom(event);
+        const target = tool === 'eraser' ? findStrokeAt(point) : findStrokeAt(point, true);
+        ink.classList.toggle('is-over-object', Boolean(target));
+      }
+      return;
+    }
     if (currentStroke.shape === 'pen') {
       const coalesced = event.getCoalescedEvents?.() ?? [];
       (coalesced.length ? coalesced : [event]).forEach((item) => currentStroke.points.push(pointFrom(item)));
@@ -565,23 +740,40 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
     requestRedraw();
   });
   const endStroke = (event) => {
+    if (shapeDrag?.pointerId === event.pointerId) {
+      const { stroke, origin, moved } = shapeDrag;
+      shapeDrag = null;
+      layer.classList.remove('is-dragging-object');
+      trash.classList.remove('is-over');
+      if (!moved) return;
+      if (event.type === 'pointerup' && isOverTrash(event)) {
+        removeStroke(stroke);
+      } else {
+        actions.push({ type: 'move', item: stroke, from: origin });
+        syncControls();
+      }
+      return;
+    }
+    if (erasingPointer === event.pointerId) {
+      erasingPointer = null;
+      return;
+    }
     if (currentStroke?.pointerId !== event.pointerId) return;
     const stroke = currentStroke;
     currentStroke = null;
     if (stroke.shape === 'pen') return;
     // Drop shapes from a tap without a drag.
     const [start, end] = stroke.points;
-    if (Math.abs(end.x - start.x) < 4 && Math.abs(end.y - start.y) < 4) {
-      strokes = strokes.filter((item) => item !== stroke);
-      actions = actions.filter((action) => action.item !== stroke);
-      syncControls();
-      requestRedraw();
-    }
+    if (Math.abs(end.x - start.x) < 4 && Math.abs(end.y - start.y) < 4) removeStroke(stroke);
   };
   ink.addEventListener('pointerup', endStroke);
   ink.addEventListener('pointercancel', endStroke);
   // Text placement uses click so mobile browsers treat the focus as user-initiated and open the keyboard.
   ink.addEventListener('click', (event) => {
+    if (suppressClick) {
+      suppressClick = false;
+      return;
+    }
     if (tool === 'text' && !editing) addText(pointFrom(event));
   });
   dim.addEventListener('click', finishEditing);
@@ -598,7 +790,7 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
       if (editing) {
         editing.color = color;
         applyTextStyle(editing);
-      } else if (tool !== 'text') {
+      } else if (drawsInk()) {
         showSizePreview();
       }
       syncControls();
@@ -642,7 +834,7 @@ export function createAnnotator({ captureFrame, getLabel, onOpen, onClose, showT
     if (editing) {
       textSize = editing.size = Math.round(lerp(TEXT_SIZE, t));
       applyTextStyle(editing);
-    } else if (tool !== 'text') {
+    } else if (drawsInk()) {
       penSize = Math.round(lerp(PEN_SIZE, t));
       showSizePreview();
     } else {
