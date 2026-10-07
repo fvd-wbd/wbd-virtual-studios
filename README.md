@@ -34,14 +34,23 @@ The official TNT Sports fonts are loaded from `public/assets`. The current heade
 
 The catalog links to `/model-viewer/`, a desktop first-person view of the exported Blender environment. Click **Enter studio**, move the mouse to look around, use **W**, **A**, **S**, and **D** to walk, and press **Escape** to release the mouse. Collision and gravity keep the camera on the studio floor and stop it at scene geometry.
 
-The browser loads `public/models/virtual_studio.glb`; the Blender `.blend` file is authoring source and is not included in the site. GLB files in `public/models` are tracked by Git LFS, so install LFS before staging a replacement model:
+Every `.glb` in `public/models` appears automatically as a card in the **Explore in 3D** section, the same way panoramas do. To add an environment:
+
+1. Export the Blender scene as GLB to `public/models`, for example `public/models/my_studio.glb`. The card is named `My Studio`.
+2. Optionally add a thumbnail with the same base name, such as `public/models/my_studio.jpg` (JPG, PNG, WEBP, or AVIF). If there is none, opening the model once with `npm run dev` saves a snapshot of the starting view as `my_studio.jpg`. To replace it with a better angle, walk to the spot in the dev viewer and press **P**. Commit the generated JPG so it appears in the deployed site.
+3. Optionally add an Empty named `PlayerSpawn` in Blender to set where the player starts.
+4. Stage the model with Git LFS and rebuild:
 
 ```bash
 git lfs install
-git add public/models/virtual_studio.glb
+git add public/models/my_studio.glb
 ```
 
-Run `npm run dev` and open `/model-viewer/` to test the model directly. The first version requires a desktop or laptop with a mouse and keyboard.
+The Blender `.blend` file is authoring source and is not included in the site. The 3D viewer requires a desktop or laptop with a mouse and keyboard, or a WebXR headset.
+
+### 3D studios on Quest 3
+
+Open a 3D studio in Quest Browser over HTTPS (for example the GitHub Pages URL) and select **Enter VR**. Look around with your head, walk with the **left thumbstick** in the direction you are facing, and **flick the right thumbstick** to snap-turn 30°. Collision, gravity, and `PlayerSpawn` work the same as on desktop, and the view uses your real eye height. The **Enter VR** button only appears in browsers that support immersive VR.
 
 ## Private upload preview
 

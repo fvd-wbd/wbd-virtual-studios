@@ -2,8 +2,9 @@ import './tnt.css';
 
 const grid = document.querySelector('#studio-grid');
 const count = document.querySelector('#studio-count');
-const modelFeatureImage = document.querySelector('#model-feature-image');
+const modelGrid = document.querySelector('#model-grid');
 const manifestUrl = new URL(/* @vite-ignore */ '../studios.json', import.meta.url);
+const modelManifestUrl = new URL(/* @vite-ignore */ '../models.json', import.meta.url);
 
 function renderEmptyState(message) {
   grid.innerHTML = `
@@ -69,7 +70,6 @@ async function loadStudios() {
     const fragment = document.createDocumentFragment();
     studios.forEach((studio, index) => fragment.append(createStudioCard(studio, index)));
     grid.replaceChildren(fragment);
-    modelFeatureImage.src = new URL(studios[0].image, manifestUrl).href;
     grid.setAttribute('aria-busy', 'false');
     count.textContent = String(studios.length).padStart(2, '0');
   } catch (error) {
@@ -78,4 +78,66 @@ async function loadStudios() {
   }
 }
 
+function createModelCard(model, index) {
+  const article = document.createElement('article');
+  article.className = 'studio-card';
+  article.style.setProperty('--order', index);
+
+  const link = document.createElement('a');
+  const viewerUrl = new URL('model-viewer/', modelManifestUrl);
+  viewerUrl.searchParams.set('model', model.id);
+  link.href = viewerUrl.href;
+  link.setAttribute('aria-label', `Explore ${model.name} in first-person 3D`);
+
+  if (model.poster) {
+    const image = document.createElement('img');
+    image.src = new URL(model.poster, modelManifestUrl).href;
+    image.alt = '';
+    image.loading = 'lazy';
+    image.decoding = 'async';
+    link.append(image);
+  } else {
+    link.classList.add('is-placeholder');
+  }
+
+  const number = document.createElement('span');
+  number.className = 'studio-number';
+  number.textContent = String(index + 1).padStart(2, '0');
+
+  const details = document.createElement('span');
+  details.className = 'studio-details';
+  const title = document.createElement('strong');
+  title.textContent = model.name;
+  const action = document.createElement('span');
+  action.textContent = 'Walk in 3D ';
+  const arrow = document.createElement('b');
+  arrow.setAttribute('aria-hidden', 'true');
+  arrow.textContent = '\u2192';
+  action.append(arrow);
+  details.append(title, action);
+
+  link.append(number, details);
+  article.append(link);
+  return article;
+}
+
+async function loadModels() {
+  try {
+    const response = await fetch(modelManifestUrl);
+    if (!response.ok) throw new Error(`Model catalog request failed: ${response.status}`);
+    const models = await response.json();
+    if (!Array.isArray(models) || models.length === 0) {
+      modelGrid.closest('section').classList.add('is-hidden');
+      return;
+    }
+    modelGrid.replaceChildren(...models.map(createModelCard));
+  } catch (error) {
+    console.error(error);
+    modelGrid.closest('section').classList.add('is-hidden');
+  } finally {
+    modelGrid.setAttribute('aria-busy', 'false');
+  }
+}
+
 loadStudios();
+loadModels();
