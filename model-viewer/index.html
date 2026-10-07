@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101e28" />
+    <meta name="description" content="Walk through the TNT Sports virtual studio in 3D." />
+    <title>3D Studio | TNT Sports</title>
+  </head>
+  <body class="model-page">
+    <main id="model-app" class="model-app">
+      <canvas id="model-canvas" aria-label="Interactive first-person 3D studio viewer"></canvas>
+      <div class="viewer-shade" aria-hidden="true"></div>
+
+      <header class="viewer-header">
+        <a class="brand" href="../" aria-label="Back to TNT Sports Virtual Studios">
+          <span class="brand-tnt">TNT</span>
+          <span class="brand-sports">Sports</span>
+        </a>
+        <div class="viewer-title">
+          <span>Now exploring</span>
+          <strong>Virtual Studio 3D</strong>
+        </div>
+        <a class="back-link" href="../"><span aria-hidden="true">&#8592;</span> All studios</a>
+      </header>
+
+      <div id="model-loader" class="viewer-loader" role="status" aria-live="polite">
+        <div class="viewfinder loading-mark" aria-hidden="true"><span></span><span></span></div>
+        <strong id="model-loader-title">Building 3D studio</strong>
+        <span id="model-loader-detail">Loading environment</span>
+      </div>
+
+      <section id="model-entry" class="model-entry is-hidden" aria-labelledby="model-entry-title">
+        <div class="viewfinder model-entry-mark" aria-hidden="true"><span></span><span></span></div>
+        <p class="eyebrow">First-person experience</p>
+        <h1 id="model-entry-title">Enter the studio</h1>
+        <p id="model-entry-copy">Use your mouse to look and W, A, S, D to move.</p>
+        <button id="model-enter" class="primary-button" type="button">Enter studio <span aria-hidden="true">&#8594;</span></button>
+      </section>
+
+      <div id="model-controls-hint" class="model-controls-hint is-hidden" aria-hidden="true">
+        <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span>
+        <span>Mouse Look</span>
+        <span><kbd>Esc</kbd> Release</span>
+      </div>
+
+      <div id="model-toast" class="toast" role="status" aria-live="polite"></div>
+    </main>
+    <script type="module" src="/src/model-viewer.js"></script>
+  </body>
+</html>

@@ -67,6 +67,7 @@ export default defineConfig({
         catalog: path.resolve('index.html'),
         viewer: path.resolve('viewer/index.html'),
         upload: path.resolve('upload/index.html'),
+        modelViewer: path.resolve('model-viewer/index.html'),
       },
     },
   },

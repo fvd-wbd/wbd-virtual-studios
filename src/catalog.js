@@ -2,6 +2,7 @@ import './tnt.css';
 
 const grid = document.querySelector('#studio-grid');
 const count = document.querySelector('#studio-count');
+const modelFeatureImage = document.querySelector('#model-feature-image');
 const manifestUrl = new URL(/* @vite-ignore */ '../studios.json', import.meta.url);
 
 function renderEmptyState(message) {
@@ -68,6 +69,7 @@ async function loadStudios() {
     const fragment = document.createDocumentFragment();
     studios.forEach((studio, index) => fragment.append(createStudioCard(studio, index)));
     grid.replaceChildren(fragment);
+    modelFeatureImage.src = new URL(studios[0].image, manifestUrl).href;
     grid.setAttribute('aria-busy', 'false');
     count.textContent = String(studios.length).padStart(2, '0');
   } catch (error) {

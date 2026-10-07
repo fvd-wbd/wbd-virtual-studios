@@ -30,6 +30,19 @@ The Vite configuration generates `studios.json` from the folder contents. No Jav
 
 The official TNT Sports fonts are loaded from `public/assets`. The current header uses a typographic TNT Sports lockup because no official logo artwork is stored in the project.
 
+## First-person 3D studio
+
+The catalog links to `/model-viewer/`, a desktop first-person view of the exported Blender environment. Click **Enter studio**, move the mouse to look around, use **W**, **A**, **S**, and **D** to walk, and press **Escape** to release the mouse. Collision and gravity keep the camera on the studio floor and stop it at scene geometry.
+
+The browser loads `public/models/virtual_studio.glb`; the Blender `.blend` file is authoring source and is not included in the site. GLB files in `public/models` are tracked by Git LFS, so install LFS before staging a replacement model:
+
+```bash
+git lfs install
+git add public/models/virtual_studio.glb
+```
+
+Run `npm run dev` and open `/model-viewer/` to test the model directly. The first version requires a desktop or laptop with a mouse and keyboard.
+
 ## Private upload preview
 
 Open `/upload/` and choose or drop a panorama up to 50 MB. The file is loaded directly in the browser, is never sent to a server, and is not added to the public catalog. It is discarded when the page closes or reloads.
